@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash
 from .models import db, SiteSetting , Admin
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 
 limiter = Limiter(get_remote_address)
 load_dotenv() 
@@ -24,6 +26,7 @@ csrf = CSRFProtect()
 
 def create_app():
     app = Flask(__name__)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
     app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']

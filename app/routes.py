@@ -669,15 +669,15 @@ def forbidden(e):
     # Render a specific 403 template or use the 404 template with a custom message
     # return render_template("errors/403.html"), 403
     # Correcting the 404 template's content is better than showing wrong text here.
-    return render_template("errors/404.html", error_code=403, error_message="Forbidden - You don't have permission to access this page."), 403
+    return render_template("404.html", error_code=403, error_message="Forbidden - You don't have permission to access this page."), 403
 
 @app.errorhandler(404)
 def page_not_found(e):
     # You might want to pass info to the template
-    return render_template("errors/404.html", error_code=404, error_message="Page Not Found"), 404
+    return render_template("404.html", error_code=404, error_message="Page Not Found"), 404
 
 @app.errorhandler(405)
 def method_not_allowed(e):
     # Render a specific 405 template or use the 404 template with a custom message
     # return render_template("errors/405.html"), 405
-    return render_template("errors/404.html", error_code=405, error_message="Method Not Allowed"), 405
+    return render_template("404.html", error_code=405, error_message="Method Not Allowed"), 405
