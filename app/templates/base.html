@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="description" content="{% block meta_description %}Insights and reflections on technology and life.{% endblock %}">
+    <title>{% block title %}Home{% endblock %} - {{ site_name | default('My Blog') }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="{{ 'with-profile-pic' if show_profile_pic_global and profile_pic_filename_global else '' }}">
+
+    <header class="site-header">
+        <div class="container header-container">
+
+            {# --- Profile Picture Element (Uses S3 URL) --- #}
+            {% if show_profile_pic_global and profile_pic_filename_global %}
+            {% set s3_base_url = 'https://' + config.S3_BUCKET + '.s3.' + config.S3_REGION + '.amazonaws.com/' %}
+            <div class="profile-picture-nav-container">
+                <a href="{{ url_for('about') }}" title="About Me">
+                    {# Construct S3 URL using the key stored in profile_pic_filename_global #}
+                    <img src="{{ s3_base_url }}{{ profile_pic_filename_global }}"
+                         alt="Profile Picture"
+                         class="profile-picture-nav">
+                </a>
+            </div>
+            {% endif %}
+            {# --- End Profile Picture --- #}
+
+            <div class="header-content">
+                <div class="logo">
+                    <a href="{{ url_for('index') }}">{{ site_name | default('My Blog') }}</a>
+                </div>
+                <nav class="main-nav">
+                    <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}">Home</a>
+                    <a href="{{ url_for('about') }}" class="{{ 'active' if request.endpoint == 'about' else '' }}">About</a>
+                    {% if session.get('admin') %}
+                        <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint and 'admin' in request.endpoint else '' }}">Dashboard</a>
+                        <a href="{{ url_for('admin_logout') }}">Logout</a>
+                    {% endif %}
+                </nav>
+            </div>
+
+        </div>
+    </header>
+
+    <main class="container content-area {{ 'content-area-shifted' if show_profile_pic_global and profile_pic_filename_global else '' }}">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category if category in ['success', 'error', 'warning', 'info'] else 'info' }}">{{ message }}</div>
+                {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <div class="footer-contact-info">
+                <span>Email: <a href="mailto:your.email@example.com">your.email@example.com</a></span> |
+                <span>Phone: <a href="tel:+15551234567">+1 (555) 123-4567</a></span>
+                | <span>Location: Côte Saint-Luc, QC, Canada</span>
+            </div>
+            <p>&copy; {{ now.year }} {{ site_name | default('Your Name') }}. All rights reserved.</p>
+        </div>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

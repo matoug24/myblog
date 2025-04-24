@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% block title %}{{ post.title }} - {{ site_name }}{% endblock %}
+{% block meta_description %}{{ post.body|striptags|truncate(150) }}{% endblock %}
+
+{% block content %}
+<article class="blog-post-full">
+  <header class="post-header">
+
+    {# --- START: Moved First Image Block --- #}
+    {# Define S3 base URL once if config exists (needed here now) #}
+    {% if config.S3_BUCKET and config.S3_REGION %}
+        {% set s3_base_url = 'https://' + config.S3_BUCKET + '.s3.' + config.S3_REGION + '.amazonaws.com/' %}
+    {% else %}
+        {% set s3_base_url = '' %} {# Handle missing config gracefully #}
+    {% endif %}
+
+    {# Display First Image Small & Circular (if exists and S3 configured) #}
+    {% if post.image_filenames and s3_base_url %}
+        {% set images = post.image_filenames.split(',') %}
+        {% set first_image_key = images[0].strip() if images else None %}
+        {% if first_image_key %}
+          {# Changed class name from inline-featured-image #}
+          <figure class="header-featured-image">
+              {# Construct S3 URL #}
+              <img src="{{ s3_base_url }}{{ first_image_key }}" alt="Featured image for {{ post.title }}">
+          </figure>
+        {% endif %}
+    {% endif %}
+    {# --- END: Moved First Image Block --- #}
+
+    {# Existing Header Content #}
+    <h1 class="post-title">{{ post.title }}</h1>
+    <div class="post-meta">
+      <span>{{ post.date_posted.strftime('%B %d, %Y') }}</span> |
+      <span>Category: {{ post.category|capitalize }}</span>
+      {% if post.is_private %} | <span class="private-icon">🔒 Private</span>{% endif %}
+    </div>
+  </header>
+
+  <section class="post-content">
+    {# S3 URL definition moved to header if only needed for first image #}
+    {# The first image block was removed from here #}
+
+    {# The main post body content #}
+    {{ post.body|safe }} {# Use |safe filter carefully #}
+  </section>
+
+  {# --- Full Image Gallery (uses S3 URLs) --- #}
+  {# Make sure s3_base_url is defined if not already done globally or in header #}
+  {% if not s3_base_url and config.S3_BUCKET and config.S3_REGION %}
+      {% set s3_base_url = 'https://' + config.S3_BUCKET + '.s3.' + config.S3_REGION + '.amazonaws.com/' %}
+  {% endif %}
+
+  {% if post.image_filenames and s3_base_url %}
+      {# Ensure no empty strings after split #}
+      {# Skip the first image if it was already displayed in the header #}
+      {% set image_keys = post.image_filenames.split(',') | map('trim') | select('!=', '') | list %}
+      {% if image_keys and image_keys|length > 1 %} {# Check if there are more images than the first one #}
+          {% set gallery_keys = image_keys[1:] %} {# Get all keys EXCEPT the first one #}
+      {% elif image_keys and first_image_key is not defined %} {# Handle case where header image wasn't shown #}
+           {% set gallery_keys = image_keys %}
+      {% else %}
+          {% set gallery_keys = [] %} {# No other images for gallery #}
+      {% endif %}
+
+      {% if gallery_keys %}
+        <section class="post-gallery">
+            <h2>Gallery</h2>
+            <div class="gallery-grid">
+            {% for img_key in gallery_keys %} {# Loop through gallery_keys now #}
+                 <figure>
+                   {# Link to the full S3 image #}
+                   <a href="{{ s3_base_url }}{{ img_key }}" target="_blank" title="View full image">
+                     {# Construct S3 URL for display #}
+                     <img src="{{ s3_base_url }}{{ img_key }}" alt="Image for {{ post.title }}" loading="lazy">
+                   </a>
+                 </figure>
+            {% endfor %}
+            </div>
+        </section>
+      {% endif %}
+  {% endif %}
+  {# --- End Full Gallery --- #}
+
+</article>
+{% endblock %}

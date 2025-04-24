@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if post else 'New' }} Blog Post{% endblock %}
+
+{% block content %}
+  <h2>{{ 'Edit' if post else 'New' }} Blog Post</h2>
+
+  <form
+    method="post"
+    enctype="multipart/form-data"
+    action="{{ url_for('edit_blog', post_id=post.id) if post else url_for('edit_blog') }}"
+    class="blog-edit-form"
+  >
+    {{ form.hidden_tag() }}
+
+    <div class="form-group">
+      {{ form.title.label(class="form-label") }}
+      {{ form.title(class="form-input") }}
+    </div>
+
+    <div class="form-group">
+      {{ form.body.label(class="form-label") }}
+      {{ form.body(class="form-textarea") }}
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        {{ form.date_posted.label(class="form-label") }}
+        {{ form.date_posted(class="form-input") }}
+      </div>
+      <div class="form-group">
+        {{ form.category.label(class="form-label") }}
+        {{ form.category(class="form-select") }}  {# now includes Private #}
+      </div>
+    </div>
+
+    <div class="form-group form-check">
+      {{ form.is_private(class="form-check-input") }}
+      {{ form.is_private.label(class="form-check-label") }}
+    </div>
+
+    <div class="form-group">
+      {{ form.password.label(class="form-label") }}
+      {{ form.password(class="form-input") }}
+      <small>Enter a password if this post is private.</small>
+    </div>
+
+    <div class="form-group">
+      {{ form.images.label(class="form-label") }}
+      {{ form.images(class="form-input", multiple=true) }}
+      <small>Allowed: PNG, JPG, GIF, WEBP.</small>
+    </div>
+
+    {% if post and post.image_filenames %}
+      <h3>Existing Images</h3>
+      {% set s3_base = 'https://' + config.S3_BUCKET + '.s3.' + config.S3_REGION + '.amazonaws.com/' %}
+      <div class="existing-images-grid">
+        {% for key in post.image_filenames.split(',') %}
+          {% set key = key.strip() %}
+          {% if key %}
+            <div class="existing-image-item">
+              <img src="{{ s3_base + key }}" alt="Image {{ loop.index }}" loading="lazy">
+              <button
+                type="submit"
+                name="remove_image"
+                value="{{ key }}"
+                class="button-remove-image"
+                onclick="return confirm('Remove this image?');"
+              >✕</button>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <button type="submit" class="button-primary">
+      {{ 'Update Post' if post else 'Create Post' }}
+    </button>
+  </form>
+{% endblock %}

@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}Home - {{ site_name }}{% endblock %}
+
+{% block content %}
+
+<section class="intro-text-container">
+    <p>
+      Welcome! This is my personal space for thoughts and ideas, quieter than typical social media. Some posts are password-locked for friends—just ask if you'd like access!
+    </p>
+</section>
+
+<section class="controls-container">
+  <div class="filter-controls">
+    <span class="control-label">Filter:</span>
+    <a href="{{ url_for('index', view=view_mode, category='all') }}" class="control-button {{ 'active' if active_filter=='all' }}">All</a>
+    <a href="{{ url_for('index', view=view_mode, category='professional') }}" class="control-button {{ 'active' if active_filter=='professional' }}">Professional</a>
+    <a href="{{ url_for('index', view=view_mode, category='personal') }}" class="control-button {{ 'active' if active_filter=='personal' }}">Personal</a>
+    <a href="{{ url_for('index', view=view_mode, category='private') }}" class="control-button {{ 'active' if active_filter=='private' }}">Private</a>
+  </div>
+
+  <div class="view-controls">
+    <span class="control-label">View:</span>
+    <a href="{{ url_for('index', category=active_filter, view='grid') }}"
+       class="control-button view-toggle {{ 'active' if view_mode == 'grid' else '' }}"
+       title="Grid View">
+       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-grid-3x2-gap-fill" viewBox="0 0 16 16"><path d="M1 4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V4zM1 9a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V9zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V9zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V9z"/></svg>
+    </a>
+    <a href="{{ url_for('index', category=active_filter, view='list') }}"
+       class="control-button view-toggle {{ 'active' if view_mode == 'list' else '' }}"
+       title="List View">
+       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-list-ul" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M5 11.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm-3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm0 4a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm0 4a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+    </a>
+  </div>
+
+</section>
+
+<section class="blog-list-container {{ view_mode }}-view">
+  {% if posts %}
+    <div class="blog-list">
+      {# Define S3 base URL once outside the loop if config exists #}
+      {% if config.S3_BUCKET and config.S3_REGION %}
+          {% set s3_base_url = 'https://' + config.S3_BUCKET + '.s3.' + config.S3_REGION + '.amazonaws.com/' %}
+      {% else %}
+          {% set s3_base_url = '' %} {# Handle missing config gracefully #}
+      {% endif %}
+
+      {% for post in posts %}
+        <article class="blog-card">
+          {# Conditional Image Display #}
+          {% if post.is_private %}
+             <div class="card-image-placeholder private-placeholder">
+                <span class="private-placeholder-icon">🔒</span>
+                <span class="private-placeholder-text">Private Post</span>
+             </div>
+          {% elif post.image_filenames and s3_base_url %}
+            {# Get the first image key #}
+            {% set first_image_key = post.image_filenames.split(',')[0].strip() %}
+            {% if first_image_key %}
+              <a href="{{ url_for('view_blog', post_id=post.id) }}" class="card-image-link">
+                {# Construct S3 URL #}
+                <img src="{{ s3_base_url }}{{ first_image_key }}" alt="{{ post.title }} preview" class="card-image" loading="lazy">
+              </a>
+            {% else %}
+              <div class="card-image-placeholder"></div> {# Placeholder if key is empty #}
+            {% endif %}
+          {% else %}
+            <div class="card-image-placeholder"></div> {# Placeholder for no image or missing S3 config #}
+          {% endif %}
+          {# End Conditional Image Display #}
+
+          <div class="card-content">
+            <div class="card-meta-top">
+                <span class="card-category category-{{ post.category }}">{{ post.category|capitalize }}</span>
+                <span class="card-date">{{ post.date_posted.strftime('%b %d, %Y') }}</span>
+            </div>
+            <h3 class="card-title">
+              <a href="{{ url_for('view_blog', post_id=post.id) }}">
+                {% if post.is_private %}<span title="Private Post" class="private-icon">🔒</span> {% endif %}{{ post.title }}
+              </a>
+            </h3>
+            {% if not post.is_private %}
+              <p class="card-excerpt">{{ post.body|striptags|truncate(120) }}</p>
+              <a href="{{ url_for('view_blog', post_id=post.id) }}" class="read-more">Read More &rarr;</a>
+            {% else %}
+              <p class="card-excerpt"><em>This post requires a password to view. Click to enter password.</em></p>
+              <a href="{{ url_for('view_blog', post_id=post.id) }}" class="read-more">Unlock Post &rarr;</a>
+            {% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="no-posts-message">No posts found matching the current filter.</p>
+  {% endif %}
+
+  <nav class="pagination">
+    {% if pagination.has_prev %}
+      <a href="{{ url_for('index', page=pagination.prev_num, category=active_filter) }}">« Prev</a>
+    {% endif %}
+    <span>Page {{ pagination.page }} of {{ pagination.pages }}</span>
+    {% if pagination.has_next %}
+      <a href="{{ url_for('index', page=pagination.next_num, category=active_filter) }}">Next »</a>
+    {% endif %}
+  </nav>
+  
+</section>
+{% endblock %}

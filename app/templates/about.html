@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}About Me - {{ site_name }}{% endblock %}
+
+{% block content %}
+<section class="about-page">
+  <h1>About Me</h1>
+
+  {# Define S3 base URL once if config exists #}
+  {% if config.S3_BUCKET and config.S3_REGION %}
+      {% set s3_base_url = 'https://' + config.S3_BUCKET + '.s3.' + config.S3_REGION + '.amazonaws.com/' %}
+  {% else %}
+      {% set s3_base_url = '' %} {# Handle missing config gracefully #}
+  {% endif %}
+
+  <div class="about-grid">
+    {% if professional %}
+    <article class="about-section professional">
+      <div class="section-content">
+        <h2>Professional Journey</h2>
+        {{ professional.content|safe }} {# Keep |safe if content is trusted HTML #}
+      </div>
+      {% if professional.image_filenames and s3_base_url %}
+        <div class="section-images">
+        {% for img_key in professional.image_filenames.split(',') | map('trim') | select('!=', '') | list %}
+          {# Construct S3 URL #}
+          <img src="{{ s3_base_url }}{{ img_key }}" alt="Professional Image" loading="lazy">
+        {% endfor %}
+        </div>
+      {% elif professional.image_filenames %}
+         <p><small>(S3 config missing, cannot display images)</small></p>
+      {% endif %}
+    </article>
+    {% endif %}
+
+    {% if personal %}
+    <article class="about-section personal">
+       <div class="section-content">
+          <h2>Beyond the Code</h2>
+          {{ personal.content|safe }} {# Keep |safe if content is trusted HTML #}
+       </div>
+       {% if personal.image_filenames and s3_base_url %}
+         <div class="section-images">
+           {% for img_key in personal.image_filenames.split(',') | map('trim') | select('!=', '') | list %}
+             {# Construct S3 URL #}
+             <img src="{{ s3_base_url }}{{ img_key }}" alt="Personal Image" loading="lazy">
+           {% endfor %}
+         </div>
+       {% elif personal.image_filenames %}
+         <p><small>(S3 config missing, cannot display images)</small></p>
+       {% endif %}
+    </article>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

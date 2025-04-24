@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+{# --- Keep Quick Links and Post List --- #}
+<h2>Admin Dashboard</h2>
+
+{# Quick Links #}
+<ul class="admin-quick-links">
+  <li><a href="{{ url_for('edit_blog') }}" class="button-secondary">Create New Blog Post</a></li>
+  <li><a href="{{ url_for('edit_about') }}" class="button-secondary">Edit About Sections</a></li>
+  <li><a href="{{ url_for('admin_settings') }}" class="button-secondary">Site Settings (Profile Pic)</a></li>
+  <li><a href="{{ url_for('admin_password_management') }}" class="button-secondary">Manage Passwords</a></li>
+
+</ul>
+
+{# Existing Blog Post List #}
+<h3>All Blog Posts</h3>
+<ul class="admin-post-list">
+  {% for post in posts %}
+    <li>
+      <span class="post-title-admin">{{ post.title }}</span>
+      <span class="post-date-admin">({{ post.date_posted.strftime('%Y-%m-%d') }})</span>
+      {% if post.is_private %} <span class="private-icon-admin" title="Private">🔒</span>{% endif %}
+      <div class="admin-actions">
+        <a href="{{ url_for('view_blog', post_id=post.id) }}" target="_blank" class="button-view">View</a>
+        <a href="{{ url_for('edit_blog', post_id=post.id) }}" class="button-edit">Edit</a>
+      </div>
+    </li>
+  {% else %}
+    <li>No posts yet.</li>
+  {% endfor %}
+</ul>
+
+
+{# --- MODIFIED Visitor Log Section --- #}
+<hr style="margin: 2rem 0;">
+<h3>Recent Visitor Logs (Last 20)</h3>
+<div class="visitor-log-list" style="max-height: 400px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--border-radius); background-color: var(--color-bg-alt);">
+  {% if visitor_logs %}
+    {# Consider using a table for better alignment #}
+    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+        <thead>
+            <tr style="text-align: left; border-bottom: 2px solid var(--color-border);">
+                <th style="padding: var(--spacing-sm);">Time (UTC)</th>
+                <th style="padding: var(--spacing-sm);">IP Address</th>
+                <th style="padding: var(--spacing-sm);">Post</th>
+                <th style="padding: var(--spacing-sm);">User Agent</th>
+                {# Optional: Add Referrer if needed #}
+                {# <th style="padding: var(--spacing-sm);">Referrer</th> #}
+            </tr>
+        </thead>
+        <tbody>
+          {% for log in visitor_logs %}
+            <tr style="border-bottom: 1px dashed var(--color-border);">
+              <td style="padding: var(--spacing-sm); white-space: nowrap;">{{ log.visit_time.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+              <td style="padding: var(--spacing-sm);">{{ log.ip_address }}</td>
+              {# Link the title to the post if ID exists #}
+              <td style="padding: var(--spacing-sm);">
+                  {% if log.blog_post_id %}
+                      <a href="{{ url_for('view_blog', post_id=log.blog_post_id) }}" target="_blank" title="View Post {{ log.blog_post_id }}">
+                          {{ log.blog_post_title | truncate(40) }} (ID: {{ log.blog_post_id }})
+                      </a>
+                  {% else %}
+                      N/A
+                  {% endif %}
+              </td>
+              {# Display User Agent (truncated) #}
+              <td style="padding: var(--spacing-sm); font-size: 0.8rem; color: var(--color-text-light);" title="{{ log.user_agent if log.user_agent else '' }}">
+                {% if log.user_agent %}
+                    {{ log.user_agent | truncate(50) }}
+                {% else %}
+                    (No User Agent) {# Or leave blank: '' #}
+                {% endif %}
+              </td>
+              {# Optional: Add Referrer #}
+              {# <td style="padding: var(--spacing-sm); font-size: 0.8rem; color: var(--color-text-light);" title="{{ log.referrer }}">
+                  {{ log.referrer | truncate(50) }}
+              </td> #}
+            </tr>
+          {% endfor %}
+        </tbody>
+    </table>
+  {% else %}
+    <p style="padding: var(--spacing-md);">No visitor logs found or unable to retrieve logs.</p>
+  {% endif %}
+</div>
+{# --- End Visitor Log Section --- #}
+
+{% endblock %}

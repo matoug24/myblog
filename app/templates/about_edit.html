@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block title %}Edit About Sections - Admin{% endblock %}
+
+{% block content %}
+<h2>Edit About Sections</h2>
+
+<form method="post" enctype="multipart/form-data" class="about-edit-form">
+  {# Add CSRF token if not using Flask-WTF Form object for the whole page #}
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  {# Define S3 base URL once if config exists #}
+  {% if config.S3_BUCKET and config.S3_REGION %}
+      {% set s3_base_url = 'https://' + config.S3_BUCKET + '.s3.' + config.S3_REGION + '.amazonaws.com/' %}
+  {% else %}
+      {% set s3_base_url = '' %}
+      <p class="alert alert-warning">S3 configuration missing, cannot display or manage existing images.</p>
+  {% endif %}
+
+  {# --- Personal Section --- #}
+  <h3>Personal Section</h3>
+  <div class="form-group">
+    <label for="personal_content">Content:</label>
+    <textarea id="personal_content" name="personal_content" rows="6">{{ personal.content if personal else '' }}</textarea>
+  </div>
+  <div class="form-group">
+    <label for="personal_images">Upload New Images (Personal):</label>
+    <input type="file" id="personal_images" name="personal_images" multiple accept="image/png, image/jpeg, image/gif, image/webp">
+  </div>
+
+  {# Display Existing Personal Images #}
+  {% if personal and personal.image_filenames and s3_base_url %}
+    <div class="existing-images-section">
+      <h4>Existing Personal Images</h4>
+      <div class="existing-images-grid">
+      {% for img_key in personal.image_filenames.split(',') | map('trim') | select('!=', '') | list %}
+        <div class="existing-image-item">
+          <img src="{{ s3_base_url }}{{ img_key }}" alt="Existing personal image {{ loop.index }}" loading="lazy"/>
+          {# --- ADDED FORM FOR REMOVAL --- #}
+          <form method="post" style="position: absolute; top: 2px; right: 2px;">
+              {# Add CSRF token if submitting separately #}
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="section_type" value="personal"> {# Identify section #}
+              <button type="submit" name="remove_image" value="{{ img_key }}"
+                      class="button-remove-image" title="Remove {{img_key}}"
+                      onclick="return confirm('Remove this image?');">
+                  ✕
+              </button>
+          </form>
+          {# --- END ADDED FORM --- #}
+        </div>
+      {% endfor %}
+      </div>
+      {# Removed comment about needing separate implementation #}
+    </div>
+  {% endif %}
+  <hr>
+
+  {# --- Professional Section --- #}
+  <h3>Professional Section</h3>
+   <div class="form-group">
+     <label for="professional_content">Content:</label>
+     <textarea id="professional_content" name="professional_content" rows="6">{{ professional.content if professional else '' }}</textarea>
+   </div>
+   <div class="form-group">
+     <label for="professional_images">Upload New Images (Professional):</label>
+     <input type="file" id="professional_images" name="professional_images" multiple accept="image/png, image/jpeg, image/gif, image/webp">
+   </div>
+
+  {# Display Existing Professional Images #}
+   {% if professional and professional.image_filenames and s3_base_url %}
+     <div class="existing-images-section">
+       <h4>Existing Professional Images</h4>
+       <div class="existing-images-grid">
+       {% for img_key in professional.image_filenames.split(',') | map('trim') | select('!=', '') | list %}
+         <div class="existing-image-item">
+           <img src="{{ s3_base_url }}{{ img_key }}" alt="Existing professional image {{ loop.index }}" loading="lazy"/>
+           {# --- ADDED FORM FOR REMOVAL --- #}
+           <form method="post" style="position: absolute; top: 2px; right: 2px;">
+               {# Add CSRF token if submitting separately #}
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+               <input type="hidden" name="section_type" value="professional"> {# Identify section #}
+               <button type="submit" name="remove_image" value="{{ img_key }}"
+                       class="button-remove-image" title="Remove {{img_key}}"
+                       onclick="return confirm('Remove this image?');">
+                   ✕
+               </button>
+           </form>
+           {# --- END ADDED FORM --- #}
+         </div>
+       {% endfor %}
+       </div>
+        {# Removed comment about needing separate implementation #}
+     </div>
+   {% endif %}
+  <hr>
+
+  <div class="form-actions">
+     {# This button submits the main form for content/new image uploads #}
+     <button type="submit" class="button-primary">Save About Sections</button>
+      <a href="{{ url_for('admin_dashboard') }}" class="button-cancel">Cancel</a>
+  </div>
+</form>
+
+{% endblock %}
