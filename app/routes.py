@@ -88,15 +88,68 @@ def upload_file_to_s3(file, bucket_name, object_name=None, acl="public-read"):
 
 # delete_file_from_s3 function remains the same
 def delete_file_from_s3(bucket_name, object_name):
-    # ... (keep existing code) ...
-    pass
+    """Delete a file from an S3 bucket"""
+    if not object_name: # Avoid trying to delete empty keys
+        app.logger.warning("Attempted to delete S3 object with empty name.")
+        return False
+
+    s3_client = get_s3_client()
+    try:
+        # THE ACTUAL DELETE CALL:
+        s3_client.delete_object(Bucket=bucket_name, Key=object_name)
+        # Log success
+        app.logger.info(f"Successfully deleted {object_name} from bucket {bucket_name}")
+        return True # Return True on success
+
+    except ClientError as e:
+        # Log specific AWS errors
+        app.logger.error(f"S3 Delete ClientError for {object_name}: {e}")
+        return False # Return False on failure
+    except Exception as e:
+        # Log any other unexpected errors
+        app.logger.error(f"Generic error deleting file {object_name}: {e}")
+        return False # Return False on failure
 # --- End S3 Helper Functions ---
+
+# --- Add Logging Helper ---
+def log_visit(page_title=None, post_id=None, post_title=None):
+    """Logs a visit attempt."""
+    try:
+        ip_address = request.remote_addr
+        user_agent_string = request.headers.get('User-Agent')
+        referrer_url = request.headers.get('Referer')
+        requested_url = request.path # Log the path requested
+
+        # Determine title: Use specific page title, post title, or requested path
+        log_title = page_title or post_title or requested_url
+
+        log_entry = VisitorLog(
+            ip_address=ip_address,
+            visit_time=datetime.utcnow(),
+            blog_post_id=post_id, # Will be None for non-post pages
+            blog_post_title=log_title[:150], # Use generic title, truncate
+            user_agent=user_agent_string[:255] if user_agent_string else None,
+            referrer=referrer_url[:255] if referrer_url else None
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+        app.logger.debug(f"Logged visit: IP={ip_address}, Page={log_title}, PostID={post_id}")
+
+    except Exception as e:
+        db.session.rollback()
+        # Log error but don't interrupt user request
+        app.logger.error(f"Error logging visitor: {e} for path {request.path}")
+# --- End Logging Helper ---
+
 
 # --- Frontend Routes ---
 @app.route('/', methods=['GET', 'POST'])
 @limiter.limit("5 per minute", methods=["POST"]) # Keep rate limiting if desired
 def index():
     # Renamed variable for clarity
+    # --- START: Log visit ---
+    log_visit(page_title="Homepage")
+    # --- END: Log visit ---
     category_filter = request.args.get('category', 'all')
     page = request.args.get('page', 1, type=int)
     view_mode = request.args.get('view', 'grid')
@@ -144,6 +197,9 @@ def index():
 
 @app.route('/about')
 def about():
+    # --- START: Log visit ---
+    log_visit(page_title="About Page")
+    # --- END: Log visit ---
     personal = AboutSection.query.filter_by(section_type='personal').first()
     professional = AboutSection.query.filter_by(section_type='professional').first()
     return render_template(
@@ -157,6 +213,9 @@ def about():
 @app.route('/blog/<int:post_id>', methods=['GET', 'POST'])
 def view_blog(post_id):
     post = BlogPost.query.get_or_404(post_id)
+    # --- START: Log visit attempt *before* password checks ---
+    log_visit(post_id=post.id, post_title=post.title)
+    # --- END: Log visit attempt ---
     should_log_visit = False
 
     # --- Password checking logic ---
@@ -185,25 +244,25 @@ def view_blog(post_id):
         should_log_visit = True
 
     # --- Visitor Logging Logic ---
-    if should_log_visit:
-        try:
-            ip_address = request.remote_addr
-            user_agent_string = request.headers.get('User-Agent')
-            referrer_url = request.headers.get('Referer')
+    # if should_log_visit:
+    #     try:
+    #         ip_address = request.remote_addr
+    #         user_agent_string = request.headers.get('User-Agent')
+    #         referrer_url = request.headers.get('Referer')
 
-            log_entry = VisitorLog(
-                ip_address=ip_address,
-                visit_time=datetime.utcnow(),
-                blog_post_id=post.id,
-                blog_post_title=post.title,
-                user_agent=user_agent_string[:255] if user_agent_string else None, # Truncate and handle None
-                referrer=referrer_url[:255] if referrer_url else None # Truncate and handle None
-            )
-            db.session.add(log_entry)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"Error logging visitor for post {post.id}: {e}")
+    #         log_entry = VisitorLog(
+    #             ip_address=ip_address,
+    #             visit_time=datetime.utcnow(),
+    #             blog_post_id=post.id,
+    #             blog_post_title=post.title,
+    #             user_agent=user_agent_string[:255] if user_agent_string else None, # Truncate and handle None
+    #             referrer=referrer_url[:255] if referrer_url else None # Truncate and handle None
+    #         )
+    #         db.session.add(log_entry)
+    #         db.session.commit()
+    #     except Exception as e:
+    #         db.session.rollback()
+    #         app.logger.error(f"Error logging visitor for post {post.id}: {e}")
     # --- End Visitor Logging Logic ---
 
     return render_template('blog_view.html', post=post, config=app.config)
@@ -273,9 +332,52 @@ def admin_dashboard():
         posts=posts,
         visitor_logs=visitor_logs,
         profile_pic_filename=profile_pic_filename,
-        config=app.config # Pass config for S3 URLs
+        config=app.config, # Pass config for S3 URLs,
+        csrf_token=generate_csrf()
     )
 
+@app.route('/admin/blog/delete/<int:post_id>', methods=['POST'])
+@login_required
+def delete_blog(post_id):
+    """Deletes a blog post and associated S3 images."""
+    post = BlogPost.query.get(post_id)
+    if not post:
+        flash(f"Post with ID {post_id} not found.", "error")
+        return redirect(url_for('admin_dashboard'))
+
+    s3_bucket = app.config.get('S3_BUCKET')
+    image_keys_to_delete = []
+    if post.image_filenames:
+        image_keys_to_delete = [key.strip() for key in post.image_filenames.split(',') if key.strip()]
+
+    try:
+        # Delete related visitor logs first (optional, but good practice)
+        VisitorLog.query.filter_by(blog_post_id=post.id).delete()
+
+        # Delete the post object from the database session
+        db.session.delete(post)
+
+        # Commit the database changes (post and logs deletion)
+        db.session.commit()
+        flash(f'Post "{post.title}" and associated logs deleted successfully!', 'success')
+
+        # Now, attempt to delete images from S3 AFTER successful DB commit
+        if s3_bucket and image_keys_to_delete:
+            app.logger.info(f"Attempting to delete S3 images for post {post_id}: {image_keys_to_delete}")
+            failures = []
+            for key in image_keys_to_delete:
+                if not delete_file_from_s3(s3_bucket, key):
+                    failures.append(key)
+            if failures:
+                flash(f'Post deleted, but failed to delete these S3 images: {", ".join(failures)}. Please check S3 manually.', 'warning')
+                app.logger.error(f'S3 delete failed for keys {failures} after deleting post {post_id}')
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting post "{post.title}": {e}', 'error')
+        app.logger.error(f"Error deleting post {post_id}: {e}")
+
+    return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/settings', methods=['GET', 'POST'])
 @login_required # Use decorator for consistent auth check
