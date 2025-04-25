@@ -47,10 +47,10 @@
       {% for post in posts %}
         <article class="blog-card">
           {# Conditional Image Display #}
-          {% if post.is_private %}
+          {% if post.password %}
              <div class="card-image-placeholder private-placeholder">
                 <span class="private-placeholder-icon">🔒</span>
-                <span class="private-placeholder-text">Private Post</span>
+                <span class="private-placeholder-text">Protected Post</span>
              </div>
           {% elif post.image_filenames and s3_base_url %}
             {# Get the first image key #}
@@ -64,7 +64,14 @@
               <div class="card-image-placeholder"></div> {# Placeholder if key is empty #}
             {% endif %}
           {% else %}
-            <div class="card-image-placeholder"></div> {# Placeholder for no image or missing S3 config #}
+            <a href="{{ url_for('view_blog', post_id=post.id) }}" class="card-image-link">
+              <img
+                src="{{ url_for('static', filename='backgrounde.jpg') }}"
+                alt="Default preview for {{ post.title|e }}"
+                class="card-image"
+                loading="lazy"
+              >
+            </a>
           {% endif %}
           {# End Conditional Image Display #}
 

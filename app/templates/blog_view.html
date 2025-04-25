@@ -24,6 +24,13 @@
               {# Construct S3 URL #}
               <img src="{{ s3_base_url }}{{ first_image_key }}" alt="Featured image for {{ post.title }}">
           </figure>
+        {% else %}
+          <figure class="header-featured-image">
+            <img
+              src="{{ url_for('static', filename='backgrounde.jpg') }}"
+              alt="Default image for {{ post.title|e }}"
+            >
+          </figure>
         {% endif %}
     {% endif %}
     {# --- END: Moved First Image Block --- #}
@@ -33,7 +40,7 @@
     <div class="post-meta">
       <span>{{ post.date_posted.strftime('%B %d, %Y') }}</span> |
       <span>Category: {{ post.category|capitalize }}</span>
-      {% if post.is_private %} | <span class="private-icon">🔒 Private</span>{% endif %}
+      {% if post.password %} | <span class="private-icon">🔒 Protected</span>{% endif %}
     </div>
   </header>
 

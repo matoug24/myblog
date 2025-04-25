@@ -144,7 +144,7 @@ def log_visit(page_title=None, post_id=None, post_title=None):
 
 # --- Frontend Routes ---
 @app.route('/', methods=['GET', 'POST'])
-@limiter.limit("5 per minute", methods=["POST"]) # Keep rate limiting if desired
+@limiter.limit("10 per minute", methods=["POST"]) # Keep rate limiting if desired
 def index():
     # Renamed variable for clarity
     # --- START: Log visit ---
@@ -172,14 +172,14 @@ def index():
     query = BlogPost.query.order_by(BlogPost.date_posted.desc())
 
     if category_filter == 'private':
-        query = query.filter_by(is_private=True)
+        query = query.filter_by(category=category_filter)
         if not session.get('private_section_access'):
              query = query.filter(db.false()) # Force query to return nothing
     elif category_filter in ['personal', 'professional']:
         # For specific non-private categories, filter by category AND ensure not private
-        query = query.filter_by(category=category_filter, is_private=False)
+        query = query.filter_by(category=category_filter)
     else: # 'all' or any other category value
-        query = query.filter_by(is_private=False)
+        query = query.filter(BlogPost.category.in_(['personal','professional']))
     # --- End Query Modification ---
 
     pagination = query.paginate(page=page, per_page=10, error_out=False)
@@ -218,52 +218,25 @@ def view_blog(post_id):
     # --- END: Log visit attempt ---
     should_log_visit = False
 
-    # --- Password checking logic ---
-    if post.is_private:
+    # --- Password checking logic for ANY protected post ---
+    if post.password:
         session_key = f'post_{post_id}_access'
         if session.get(session_key):
             should_log_visit = True
         elif request.method == 'POST':
-            entered_password = request.form.get('password')
-            if post.password and entered_password:
-                is_correct = check_password_hash(post.password, entered_password)
-                if is_correct:
-                    session[session_key] = True
-                    should_log_visit = True
-                else:
-                     flash("Incorrect password.", "error")
-                     return render_template('password_prompt.html', post=post, config=app.config, csrf_token=generate_csrf())
+            entered = request.form.get('password','')
+            if check_password_hash(post.password, entered):
+                session[session_key] = True
+                should_log_visit = True
             else:
-                # Handle case where either stored hash or entered password is empty/None if needed
-                flash("Password check error.", "error") # Or more specific message
+                flash("Incorrect password.", "error")
                 return render_template('password_prompt.html', post=post, config=app.config, csrf_token=generate_csrf())
-
         else:
             return render_template('password_prompt.html', post=post, config=app.config, csrf_token=generate_csrf())
-    else: # Public post
+    else:
         should_log_visit = True
 
-    # --- Visitor Logging Logic ---
-    # if should_log_visit:
-    #     try:
-    #         ip_address = request.remote_addr
-    #         user_agent_string = request.headers.get('User-Agent')
-    #         referrer_url = request.headers.get('Referer')
 
-    #         log_entry = VisitorLog(
-    #             ip_address=ip_address,
-    #             visit_time=datetime.utcnow(),
-    #             blog_post_id=post.id,
-    #             blog_post_title=post.title,
-    #             user_agent=user_agent_string[:255] if user_agent_string else None, # Truncate and handle None
-    #             referrer=referrer_url[:255] if referrer_url else None # Truncate and handle None
-    #         )
-    #         db.session.add(log_entry)
-    #         db.session.commit()
-    #     except Exception as e:
-    #         db.session.rollback()
-    #         app.logger.error(f"Error logging visitor for post {post.id}: {e}")
-    # --- End Visitor Logging Logic ---
 
     return render_template('blog_view.html', post=post, config=app.config)
 
@@ -507,17 +480,17 @@ def edit_blog(post_id=None):
             post = post or BlogPost()
             form.populate_obj(post) # Populate basic fields like title, body, date, category, is_private
 
-            # Handle private-post password
-            if post.is_private:
-                if form.password.data:
-                    post.password = generate_password_hash(form.password.data)
-                elif is_new_post: # Require password only for new private posts
-                    flash('New private posts require a password.', 'error')
-                    # Pass csrf_token if needed
-                    return render_template('blog_edit.html', form=form, post=post, config=app.config)
-                # If editing, allow keeping existing password by submitting empty
+            # Handle password protection on any post
+            if form.password.data:
+                # If the user filled in a password, (re-)hash it
+                post.password = generate_password_hash(form.password.data)
+            elif post.password and not is_new_post:
+                # Editing: no new password ⇒ keep the existing hash
+                pass
             else:
+                # No password provided on a new post (or cleared on edit) ⇒ no protection
                 post.password = None
+
 
             # Handle NEW image uploads
             new_keys = []
